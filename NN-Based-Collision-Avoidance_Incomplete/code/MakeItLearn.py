@@ -4,6 +4,8 @@ from torch.autograd import Variable
 import pdb
 import numpy as np
 from PreProcessing import PreprocessData
+import torch.optim as optim
+
 
 # Set Seeds For Randomness
 torch.manual_seed(10)
@@ -21,16 +23,22 @@ HiddenSize = 10
 class Net(nn.Module):
     def __init__(self, InputSize,NumClasses):
         super(Net, self).__init__()
+        self.fc1 = nn.Linear(InputSize, 200)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(200, NumClasses)
 		###### Define The Feed Forward Layers Here! ######
         
     def forward(self, x):
 		###### Write Steps For Forward Pass Here! ######
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.fc2(out)
         return out
 
 net = Net(InputSize, NumClasses)     
 
-criterion = ###### Define The Loss Function Here! ######
-optimizer = ###### Define The Optimizer Here! ######
+criterion = nn.MSELoss() ###### Define The Loss Function Here! ######
+optimizer = optim.SGD(net.parameters(), lr=0.01) ###### Define The Optimizer Here! ######
 
 ##################################################################################################
 
