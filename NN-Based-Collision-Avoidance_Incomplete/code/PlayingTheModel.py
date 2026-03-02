@@ -89,13 +89,18 @@ class BotEnv:
     def BuildBot(self, x, y, r):
         ### Build The Bot Object ###
         size = r
-        BoxPoints = list(map(Vec2d, [(-size, -size), (-size, size), (size,size), (size, -size)]))
+        BoxPoints = [
+            Vec2d(-size, -size),
+            Vec2d(-size,  size),
+            Vec2d( size,  size),
+            Vec2d( size, -size),
+        ]
         mass  = 0.5
         moment = pymunk.moment_for_poly(mass,BoxPoints, Vec2d(0,0))
         self.Bot = pymunk.Body(mass, moment)
         self.Bot.position = Vec2d(x,y)
         self.Bot.angle = 1.54
-        BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+        BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
         self.space.add(self.Bot)
         self.BotRect = pygame.Rect(x-r,600-y-r, 2*r, 2*r)
         return self.Bot
@@ -119,7 +124,7 @@ class BotEnv:
             (self.BotRect.x,self.BotRect.y) = self.Bot.position[0],600-self.Bot.position[1]
             self.CircleRect = pygame.draw.circle(screen, (255,0,0), (self.BotRect.x,self.BotRect.y), 20, 0)
         img = pygame.image.load("./assets/spherelight.png")
-        offset = Vec2d(img.get_size()) / 2.
+        offset = Vec2d(*img.get_size()) / 2.
         x, y =  self.Bot.position
         y = 600.0 -y
         AdjustedImagePosition = (x,y) - offset
@@ -139,14 +144,14 @@ class BotEnv:
         if action == 3:  
             self.Bot.angle -= 0.1
             self.PreviousBodyAngle =  self.Bot.angle
-            self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+            self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
             BotDirection = self.BotDirection
             self.Bot.velocity = BotSpeed/2 * BotDirection
         ## If Action Is Right
         elif action == 4:
             self.Bot.angle += 0.1
             self.PreviousBodyAngle =  self.Bot.angle
-            self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+            self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
             BotDirection = self.BotDirection
             self.Bot.velocity = BotSpeed * BotDirection
             self.Bot.velocity = BotSpeed/2 * BotDirection
@@ -163,19 +168,19 @@ class BotEnv:
                 if(d > 0):
                         self.Bot.angle += 0.1
                         self.PreviousBodyAngle =  self.Bot.angle
-                        self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+                        self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
                         BotDirection = self.BotDirection
                         self.Bot.velocity = BotSpeed* BotDirection
                 else:
                         self.Bot.angle -= 0.1
                         self.PreviousBodyAngle =  self.Bot.angle
-                        self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+                        self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
                         BotDirection = self.BotDirection
                         self.Bot.velocity = BotSpeed * BotDirection
             else:
                 self.Bot.angle = PlannedAngle
                 self.PreviousBodyAngle =  self.Bot.angle
-                self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+                self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
                 BotDirection = self.BotDirection
                 self.Bot.velocity = BotSpeed * BotDirection
         screen.fill(THECOLORS["white"]) ## Clear The Screen
@@ -190,11 +195,18 @@ class BotEnv:
         SensorsData = np.append(SensorsData,math.degrees(self.Bot.angle))
         SensorsData = np.append(SensorsData,[0])
         print(SensorsData[:-2])  ## Print The Sensor Data
-        DataTensor = torch.Tensor(SensorsData[:-1]).view(1,-1)
+        # Use same normalization as training (PreProcessing: distances/100, angle/360)
+        features = np.array(SensorsData[:-1], dtype=np.float32)
+        features[:5] = features[:5] / 100.0
+        features[5] = features[5] / 360.0
+        DataTensor = torch.Tensor(features).view(1, -1)
         if (model != None):
             ## Get Decision From Neural Network If There Is A Collison
-            self.DetectCrash = model(Variable(DataTensor))
-            self.DetectCrash = abs(np.round(self.DetectCrash.data[0][0]))
+            raw_pred = model(Variable(DataTensor)).data[0][0]
+            # Print the model's current estimate of future collision risk (trained target: 0–1)
+            print(f"Model crash score (normalized count): {raw_pred:.3f}")
+            # Only predict crash when score is above threshold; negative = no crash
+            self.DetectCrash = 1 if raw_pred > 0.04 else 0
             if(self.DetectCrash > 0):
                 SignalData = SensorsData[:-2]
                 if(sum(SignalData[:2]) > sum(SignalData[-2:])):
@@ -217,7 +229,7 @@ class BotEnv:
             self.crashed = False 
             for i in range(1):
                 self.Bot.angle += 2
-                self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+                self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
                 BotDirection = self.BotDirection
                 self.Bot.velocity = BotSpeed * BotDirection
                 screen.fill(THECOLORS["white"])

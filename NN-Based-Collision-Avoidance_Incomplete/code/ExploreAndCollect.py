@@ -66,13 +66,18 @@ class BotEnv:
     def BuildBot(self, x, y, r):
         ### Build The Bot Object ###
         size = r
-        BoxPoints = list(map(Vec2d, [(-size, -size), (-size, size), (size,size), (size, -size)]))
+        BoxPoints = [
+            Vec2d(-size, -size),
+            Vec2d(-size,  size),
+            Vec2d( size,  size),
+            Vec2d( size, -size),
+        ]
         mass  = 0.5
         moment = pymunk.moment_for_poly(mass,BoxPoints, Vec2d(0,0))
         self.Bot = pymunk.Body(mass, moment)
         self.Bot.position = (x,y) # Declare Bot Position
         self.Bot.angle = 1.54     # Set the Bot Angle
-        BotDirection = Vec2d(PointsFromAngle(self.Bot.angle)) # Get The Direction Vector From Angle
+        BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle)) # Get The Direction Vector From Angle
         self.space.add(self.Bot)
         self.BotRect = pygame.Rect(x-r,600-y-r, 2*r, 2*r)
         return self.Bot
@@ -95,7 +100,7 @@ class BotEnv:
             (self.BotRect.x,self.BotRect.y) = self.Bot.position[0],600-self.Bot.position[1]
             self.CircleRect = pygame.draw.circle(screen, (255,0,0), (self.BotRect.x,self.BotRect.y), 20, 0)
         img = pygame.image.load("./assets/spherelight.png")
-        offset = Vec2d(img.get_size()) / 2.0
+        offset = Vec2d(*img.get_size()) / 2.0
         x, y =  self.Bot.position
         y = 600.0 -y
         AdjustedImagePosition = (x,y) - offset
@@ -115,7 +120,7 @@ class BotEnv:
         if action == 3:  
             self.Bot.angle -= 0.02
             self.PreviousBodyAngle =  self.Bot.angle
-            self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+            self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
             BotDirection = self.BotDirection
             if(CrashStep > 0):
                 self.Bot.velocity = BotSpeed/3 * BotDirection
@@ -126,7 +131,7 @@ class BotEnv:
         elif action == 4:
             self.Bot.angle += 0.02
             self.PreviousBodyAngle =  self.Bot.angle
-            self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+            self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
             BotDirection = self.BotDirection
             self.Bot.velocity = BotSpeed * BotDirection
             if(CrashStep == 1):
@@ -138,7 +143,7 @@ class BotEnv:
         elif action == 5:
             self.Bot.angle += 0.
             self.PreviousBodyAngle =  self.Bot.angle
-            self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+            self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
             BotDirection = self.BotDirection
             self.Bot.velocity = BotSpeed * BotDirection
             if(CrashStep == 1):
@@ -160,11 +165,17 @@ class BotEnv:
         DataTensor = torch.Tensor(SensorsData[:-1]).view(1,-1)
         for ob in self.WallRects:
             if ob.colliderect(self.CircleRect):
+                    self.crashed = True
+                    SensorsData[-1] = 1
+                    SummarySensorData.append(SensorsData)
                     self.RecoverFromCrash(BotDirection)
         if (x >= 580 or x <= 20 or y <= 20 or y >=680):
+                    self.crashed = True
+                    SensorsData[-1] = 1
+                    SummarySensorData.append(SensorsData)
                     self.RecoverFromCrash(BotDirection)
         SignalData = SensorsData[:-2]
-        if 1 in SignalData:
+        if min(SignalData) <= 1:
             if(action == 5):
                 action = self.PreviousAction
             self.crashed = True
@@ -184,7 +195,7 @@ class BotEnv:
             self.crashed = False 
             for i in range(1):
                 self.Bot.angle += 3.14
-                self.BotDirection = Vec2d(PointsFromAngle(self.Bot.angle))
+                self.BotDirection = Vec2d(*PointsFromAngle(self.Bot.angle))
                 BotDirection = self.BotDirection
                 self.Bot.velocity = BotSpeed * BotDirection
                 screen.fill(THECOLORS["white"])
